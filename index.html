@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photo Gallery</title>
+<style>
+  :root { --accent:#9b786c; --ink:#292522; --muted:#8b817b; --paper:#fffdfb; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:20px; background:transparent; color:var(--ink);
+         font-family:Arial, Helvetica, sans-serif; }
+  .gallery { width:min(100%, 920px); margin:auto; padding:16px; background:var(--paper);
+             border:1px solid #eee7e2; border-radius:22px;
+             box-shadow:0 12px 34px rgba(58,43,35,.10); }
+  .stage { position:relative; overflow:hidden; border-radius:15px; background:#f2eeeb;
+           aspect-ratio:16/10; display:grid; place-items:center; }
+  .stage img { display:block; width:100%; height:100%; object-fit:contain; }
+  .arrow { position:absolute; top:50%; transform:translateY(-50%); z-index:2;
+           width:42px; height:42px; border:0; border-radius:50%; cursor:pointer;
+           color:#3c332f; background:rgba(255,253,251,.88); font-size:25px;
+           box-shadow:0 3px 12px rgba(0,0,0,.12); }
+  .arrow:hover { background:white; }
+  .prev { left:12px; } .next { right:12px; }
+  .caption-row { display:flex; justify-content:space-between; align-items:center;
+                 gap:12px; padding:13px 2px 12px; color:var(--muted); font-size:13px; }
+  .caption { color:var(--ink); font-size:14px; }
+  .thumb-wrap { position:relative; }
+  .thumbs { display:flex; gap:10px; overflow-x:auto; padding:3px 2px 9px;
+            scroll-behavior:smooth; scrollbar-width:thin; }
+  .thumb { flex:0 0 88px; width:88px; height:64px; padding:0; overflow:hidden;
+           border:2px solid transparent; border-radius:10px; background:#f2eeeb; cursor:pointer; }
+  .thumb img { width:100%; height:100%; display:block; object-fit:cover; }
+  .thumb.active { border-color:var(--accent); box-shadow:0 0 0 2px #eadbd4; }
+  .empty { padding:24px; text-align:center; color:var(--muted); line-height:1.6; }
+  @media (max-width:600px) {
+    body { padding:8px; }
+    .gallery { padding:9px; border-radius:16px; }
+    .stage { aspect-ratio:4/3; }
+    .arrow { width:36px; height:36px; }
+    .thumb { flex-basis:72px; width:72px; height:54px; }
+  }
+</style>
+</head>
+<body>
+<div class="gallery" id="gallery">
+  <div class="stage" id="stage">
+    <div class="empty">Tambahkan foto ke folder <b>images</b>.<br>
+      Gunakan nama 01.jpg, 02.jpg, 03.jpg, dan seterusnya.</div>
+  </div>
+  <div class="caption-row">
+    <span class="caption" id="caption">Photo gallery</span>
+    <span id="count"></span>
+  </div>
+  <div class="thumb-wrap"><div class="thumbs" id="thumbs" aria-label="Pilihan foto"></div></div>
+</div>
+<script>
+/* Foto dibaca otomatis dari folder images dengan nama 01.jpg sampai 50.jpg.
+   Foto yang belum ada akan dilewati. */
+const maxPhotos = 50;
+const photos = Array.from({length:maxPhotos}, (_,i) => {
+  const number = String(i+1).padStart(2, "0");
+  return {src:`images/${number}.jpg`, label:`Foto ${i+1}`};
+});
+const stage = document.getElementById("stage");
+const thumbs = document.getElementById("thumbs");
+const caption = document.getElementById("caption");
+const count = document.getElementById("count");
+let available = [];
+let current = 0;
+let startX = 0;
+
+function show(index) {
+  if (!available.length) return;
+  current = (index + available.length) % available.length;
+  const item = available[current];
+  stage.innerHTML = `
+    <button class="arrow prev" aria-label="Foto sebelumnya">&#8249;</button>
+    <img src="${item.src}" alt="${item.label}">
+    <button class="arrow next" aria-label="Foto berikutnya">&#8250;</button>`;
+  stage.querySelector(".prev").addEventListener("click", () => show(current-1));
+  stage.querySelector(".next").addEventListener("click", () => show(current+1));
+  caption.textContent = item.label;
+  count.textContent = `${current+1} / ${available.length}`;
+  [...thumbs.children].forEach((el,i) => el.classList.toggle("active", i===current));
+  const active = thumbs.children[current];
+  if (active) active.scrollIntoView({behavior:"smooth", block:"nearest", inline:"center"});
+}
+function loadImage(item) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => resolve(item);
+    img.onerror = () => resolve(null);
+    img.src = item.src;
+  });
+}
+Promise.all(photos.map(loadImage)).then(results => {
+  available = results.filter(Boolean);
+  if (!available.length) return;
+  thumbs.innerHTML = "";
+  available.forEach((item,i) => {
+    const button = document.createElement("button");
+    button.className = "thumb";
+    button.type = "button";
+    button.setAttribute("aria-label", `Buka ${item.label}`);
+    const img = document.createElement("img");
+    img.src = item.src; img.alt = "";
+    button.appendChild(img);
+    button.addEventListener("click", () => show(i));
+    thumbs.appendChild(button);
+  });
+  show(0);
+});
+stage.addEventListener("touchstart", e => { startX = e.changedTouches[0].screenX; }, {passive:true});
+stage.addEventListener("touchend", e => {
+  const delta = e.changedTouches[0].screenX - startX;
+  if (Math.abs(delta) > 45) show(current + (delta < 0 ? 1 : -1));
+}, {passive:true});
+document.addEventListener("keydown", e => {
+  if (e.key === "ArrowRight") show(current+1);
+  if (e.key === "ArrowLeft") show(current-1);
+});
+</script>
+</body>
+</html>
